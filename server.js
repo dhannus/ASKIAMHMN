@@ -303,7 +303,7 @@ app.get('/q/:id', async (req, res) => {
   await q(`UPDATE questions SET view_count = view_count + 1 WHERE id = $1`, [id]);
 
   const { rows: answers } = await q(
-    `SELECT a.*, u.display_name
+    `SELECT a.*, u.display_name, u.operator_name AS operator_name
      FROM answers a JOIN users u ON u.id = a.answerer_id
      WHERE a.question_id = $1
      ORDER BY a.marked_helpful DESC, a.created_at ASC`,
@@ -858,7 +858,7 @@ function renderQuestion({ question, answers, category, me }) {
           ${qualified && !isBot
             ? `<span class="verify-badge verify-yes">✓ Fachverifikation für ${esc(category.label)}</span>`
             : isBot
-              ? `<span class="verify-badge verify-bot" title="Maschinen-Antworten werden grundsätzlich ohne Fachverifikation eingestuft — die Verantwortung liegt beim Bot-Betreiber.">🤖 ${esc(req.actor?.user?.operator_name || a.answerer_role_label || 'Bot')}</span>`
+              ? `<span class="verify-badge verify-bot" title="Maschinen-Antworten werden grundsätzlich ohne Fachverifikation eingestuft — die Verantwortung liegt beim Bot-Betreiber.">🤖 ${esc(a.operator_name || a.answerer_role_label || 'Bot')}</span>`
               : `<span class="verify-badge verify-no" title="Trotzdem gültige Antwort, aber ohne fachliche Verifikation für diese Kategorie">⚠ Keine Fachverifikation für ${esc(category?.label || question.category)}</span>`}
         </header>
         <div class="answer-body">${linkify(esc(a.body))}</div>
