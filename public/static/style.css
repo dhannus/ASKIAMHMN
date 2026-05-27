@@ -713,3 +713,29 @@ a:hover { text-decoration: underline; }
   .me-info { display: none; }
   .topnav { gap: 10px; }
 }
+
+/* ── Language toggle (DE/EN) ── */
+.lang-toggle {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--sand);
+  border-radius: 100px;
+  padding: 2px;
+}
+.lang-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--ink-mute);
+  font: 600 11px/1 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.5px;
+  padding: 5px 9px;
+  border-radius: 100px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.lang-toggle button:hover { color: var(--ink); }
+.lang-toggle button.active {
+  background: var(--paper);
+  color: var(--terra-dp);
+  box-shadow: 0 1px 3px rgba(45, 40, 35, 0.12);
+}

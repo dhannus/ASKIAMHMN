@@ -104,10 +104,10 @@ async function upsertUser(claims) {
          verification_method = EXCLUDED.verification_method,
          verification_label  = EXCLUDED.verification_label,
          last_seen_at = NOW()`,
-    [id, claims.role || 'citizen', claims.role_label || 'Bürger',
+    [id, claims.role || 'citizen', claims.role_label || 'Citizen',
      claims.role_icon || '🧑', claims.trust_score || 30,
      claims.verification_method || 'self-declared',
-     claims.verification_method_label || 'Selbstdeklariert',
+     claims.verification_method_label || 'Self-declared',
      displayName]
   );
   return await getUser(id);
@@ -657,7 +657,7 @@ app.get('/auth/callback', async (req, res) => {
   }
   if (!code) return res.status(400).send(renderError('Kein Code erhalten'));
   if (state !== req.session.oauthState) {
-    return res.status(400).send(renderError('State mismatch — möglicher CSRF-Angriff'));
+    return res.status(400).send(renderError('State mismatch — possible CSRF attack'));
   }
 
   // Exchange code for token
@@ -683,7 +683,7 @@ app.get('/auth/callback', async (req, res) => {
   // Decode id_token (no signature verification here — Phase 3 will add it
   // via the JWKS endpoint of hhttps.org. For demo we trust the secure channel.)
   const parts = tokens.id_token.split('.');
-  if (parts.length !== 3) return res.status(401).send(renderError('Ungültiges id_token'));
+  if (parts.length !== 3) return res.status(401).send(renderError('Invalid id_token'));
   let claims;
   try {
     const payload = Buffer.from(parts[1], 'base64url').toString('utf8');
@@ -714,6 +714,84 @@ app.get('/logout', (req, res) => {
 // (kept inline to make the demo a single file; for production, swap to a
 //  template engine like EJS or Nunjucks)
 
+const I18N_SCRIPT = `
+<script>
+(function(){
+  const T = {
+    de: {
+      "brand.sub":"Q&A für verifizierte Menschen","nav.questions":"Fragen","nav.ask":"Frage stellen",
+      "nav.logout":"Abmelden","nav.login":"Mit HHTTPS einloggen","footer.tagline":"Demo-Plattform für das HHTTPS-Protokoll",
+      "cat.all":"Alle","home.hero.t1":"Fragen, die","home.hero.t2":"echte Menschen","home.hero.t3":"beantworten.",
+      "home.hero.lead":"Jede Antwort hier kommt von einem kryptografisch verifizierten Menschen — mit Rolle und Trust-Score. Keine Bots, keine KI-Antworten ohne Kennzeichnung.",
+      "home.empty.title":"Noch keine Fragen","home.empty.inCat":" in dieser Kategorie",
+      "home.empty.cta":"Sei der erste! Stelle eine Frage und bekomme Antworten von verifizierten Menschen.",
+      "answer.one":"Antwort","answer.many":"Antworten","q.breadcrumb":"Frage","q.noAnswers":"Noch keine Antworten.",
+      "q.beFirst":"Sei der erste!","q.loginToAnswer":"Logge dich ein, um zu antworten.",
+      "answer.helpfulBadge":"✓ Vom Fragesteller als hilfreich markiert","bot.machine":"🤖 Maschine",
+      "bot.pillTitle":"Antwort von einer registrierten Maschine — transparent gekennzeichnet","bot.metaSelfDeclared":"Maschine, selbstdeklariert",
+      "verify.for":"Fachverifikation für","verify.none":"Keine Fachverifikation für",
+      "verify.botTitle":"Maschinen-Antworten werden grundsätzlich ohne Fachverifikation eingestuft — die Verantwortung liegt beim Bot-Betreiber.",
+      "verify.noTitle":"Trotzdem gültige Antwort, aber ohne fachliche Verifikation für diese Kategorie",
+      "q.yourAnswer":"Deine Antwort","q.answeringAs":"Du antwortest als","q.withTrust":"mit Trust",
+      "q.qual.pre":"Deine Rolle ist für die Kategorie","q.qual.post":"qualifiziert — deine Antwort erscheint mit grünem Fachsiegel.",
+      "q.notQual.post":"nicht spezifisch qualifiziert. Du darfst trotzdem antworten — deine Antwort wird mit einem Hinweis versehen.",
+      "q.answerPlaceholder":"Deine Antwort...","q.postAnswer":"Antwort posten","answer.markHelpful":"Als hilfreich markieren",
+      "ask.h1":"Frage stellen","ask.askingAs":"Du fragst als","ask.leadRest":"Dein Trust-Score und deine Rolle werden bei deiner Frage angezeigt.",
+      "form.title":"Titel","form.body":"Beschreibung","form.category":"Kategorie",
+      "ask.titlePlaceholder":"Konkrete Frage in einem Satz...","ask.bodyPlaceholder":"Kontext, was du schon weißt, was du genau wissen willst...",
+      "action.cancel":"Abbrechen","action.ask":"Frage stellen","action.back":"← zurück",
+      "error.title":"Ein Fehler ist aufgetreten",
+      "time.justNow":"gerade eben","time.min":"Min","time.hrs":"Std","time.days":"Tag(e)"
+    },
+    en: {
+      "brand.sub":"Q&A by verified humans","nav.questions":"Questions","nav.ask":"Ask a question",
+      "nav.logout":"Log out","nav.login":"Log in with HHTTPS","footer.tagline":"Demo platform for the HHTTPS protocol",
+      "cat.all":"All","home.hero.t1":"Questions that","home.hero.t2":"real humans","home.hero.t3":"answer.",
+      "home.hero.lead":"Every answer here comes from a cryptographically verified human — with role and trust score. No bots, no AI answers without a label.",
+      "home.empty.title":"No questions yet","home.empty.inCat":" in this category",
+      "home.empty.cta":"Be the first! Ask a question and get answers from verified humans.",
+      "answer.one":"Answer","answer.many":"Answers","q.breadcrumb":"Question","q.noAnswers":"No answers yet.",
+      "q.beFirst":"Be the first!","q.loginToAnswer":"Log in to answer.",
+      "answer.helpfulBadge":"✓ Marked helpful by the asker","bot.machine":"🤖 Machine",
+      "bot.pillTitle":"Answer from a registered machine — transparently labelled","bot.metaSelfDeclared":"Machine, self-declared",
+      "verify.for":"Subject verification for","verify.none":"No subject verification for",
+      "verify.botTitle":"Machine answers are categorised without subject verification by default — responsibility lies with the bot operator.",
+      "verify.noTitle":"Still a valid answer, but without subject verification for this category",
+      "q.yourAnswer":"Your answer","q.answeringAs":"You are answering as","q.withTrust":"with trust",
+      "q.qual.pre":"Your role for the category","q.qual.post":"is qualified — your answer appears with a green subject seal.",
+      "q.notQual.post":"is not specifically qualified. You may still answer — your answer will be flagged with a note.",
+      "q.answerPlaceholder":"Your answer...","q.postAnswer":"Post answer","answer.markHelpful":"Mark as helpful",
+      "ask.h1":"Ask a question","ask.askingAs":"You are asking as","ask.leadRest":"Your trust score and role are shown with your question.",
+      "form.title":"Title","form.body":"Description","form.category":"Category",
+      "ask.titlePlaceholder":"A concrete question in one sentence...","ask.bodyPlaceholder":"Context, what you already know, what exactly you want to find out...",
+      "action.cancel":"Cancel","action.ask":"Ask a question","action.back":"← Back",
+      "error.title":"An error occurred",
+      "time.justNow":"just now","time.min":"min","time.hrs":"h","time.days":"day(s)"
+    }
+  };
+  function apply(lang){
+    const d = T[lang] || T.de;
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach(function(e){ var t=d[e.getAttribute('data-i18n')]; if(t!=null) e.textContent=t; });
+    document.querySelectorAll('[data-i18n-title]').forEach(function(e){ var t=d[e.getAttribute('data-i18n-title')]; if(t!=null) e.title=t; });
+    document.querySelectorAll('[data-i18n-ph]').forEach(function(e){ var t=d[e.getAttribute('data-i18n-ph')]; if(t!=null) e.placeholder=t; });
+    document.querySelectorAll('.lang-toggle button').forEach(function(b){ b.classList.toggle('active', b.dataset.lang===lang); });
+    try { localStorage.setItem('iamhmn-lang', lang); } catch(e){}
+  }
+  function detect(){
+    try { var s=localStorage.getItem('iamhmn-lang'); if(s && T[s]) return s; } catch(e){}
+    var n=(navigator.language||'de').slice(0,2).toLowerCase();
+    return T[n] ? n : 'de';
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.lang-toggle button').forEach(function(b){
+      b.addEventListener('click', function(){ apply(b.dataset.lang); });
+    });
+    apply(detect());
+  });
+})();
+</script>`;
+
 function pageWrap(title, content, opts = {}) {
   const me = opts.me;
   return `<!DOCTYPE html>
@@ -732,12 +810,12 @@ function pageWrap(title, content, opts = {}) {
     <div class="brand-mark"></div>
     <div>
       <div class="brand-name">ask <em>I am human</em></div>
-      <div class="brand-sub">Q&amp;A für verifizierte Menschen</div>
+      <div class="brand-sub" data-i18n="brand.sub">Q&amp;A für verifizierte Menschen</div>
     </div>
   </a>
   <nav class="topnav">
-    <a href="/">Fragen</a>
-    ${me ? `<a href="/ask" class="btn-primary">Frage stellen</a>` : ''}
+    <a href="/" data-i18n="nav.questions">Fragen</a>
+    ${me ? `<a href="/ask" class="btn-primary" data-i18n="nav.ask">Frage stellen</a>` : ''}
     ${me
       ? `<div class="me">
            <span class="me-icon">${esc(me.role_icon || '🧑')}</span>
@@ -745,9 +823,13 @@ function pageWrap(title, content, opts = {}) {
              <div class="me-name">${esc(me.display_name)}</div>
              <div class="me-role">${esc(me.role_label)} · Trust ${me.trust_score}</div>
            </div>
-           <a class="logout" href="/logout" title="Abmelden">↪</a>
+           <a class="logout" href="/logout" data-i18n-title="nav.logout" title="Abmelden">↪</a>
          </div>`
-      : `<a class="btn-primary" href="/login">Mit HHTTPS einloggen</a>`}
+      : `<a class="btn-primary" href="/login" data-i18n="nav.login">Mit HHTTPS einloggen</a>`}
+    <span class="lang-toggle" role="group" aria-label="Language">
+      <button type="button" data-lang="de" class="active">DE</button>
+      <button type="button" data-lang="en">EN</button>
+    </span>
   </nav>
 </header>
 <main class="container">
@@ -755,14 +837,15 @@ ${content}
 </main>
 <footer class="footer">
   <div>
-    <strong>ask.iamhmn.org</strong> · Demo-Plattform für das HHTTPS-Protokoll
+    <strong>ask.iamhmn.org</strong> · <span data-i18n="footer.tagline">Demo-Plattform für das HHTTPS-Protokoll</span>
   </div>
   <div>
     <a href="https://iamhmn.org">iamhmn.org</a>
     · <a href="https://hhttps.org">hhttps.org</a>
-    · <a href="https://github.com/dhannus/HumanProof">GitHub</a>
+    · <a href="https://github.com/dhannus/HHTTPS">GitHub</a>
   </div>
 </footer>
+${I18N_SCRIPT}
 </body>
 </html>`;
 }
@@ -779,10 +862,10 @@ function renderHome({ questions, categories, me, activeCategory }) {
   const empty = `
     <div class="empty">
       <div class="empty-icon">💭</div>
-      <h2>Noch keine Fragen${activeCategory ? ' in dieser Kategorie' : ''}</h2>
-      <p>Sei der erste! Stelle eine Frage und bekomme Antworten von verifizierten Menschen.</p>
-      ${me ? `<a class="btn-primary" href="/ask">Frage stellen</a>`
-           : `<a class="btn-primary" href="/login">Mit HHTTPS einloggen</a>`}
+      <h2><span data-i18n="home.empty.title">Noch keine Fragen</span>${activeCategory ? `<span data-i18n="home.empty.inCat"> in dieser Kategorie</span>` : ''}</h2>
+      <p data-i18n="home.empty.cta">Sei der erste! Stelle eine Frage und bekomme Antworten von verifizierten Menschen.</p>
+      ${me ? `<a class="btn-primary" href="/ask" data-i18n="action.ask">Frage stellen</a>`
+           : `<a class="btn-primary" href="/login" data-i18n="nav.login">Mit HHTTPS einloggen</a>`}
     </div>`;
 
   const qList = questions.length === 0 ? empty : questions.map(qi => `
@@ -802,7 +885,7 @@ function renderHome({ questions, categories, me, activeCategory }) {
             : `<span class="q-trust">Trust ${qi.trust_score}</span>`}
         </span>
         <span class="q-stats">
-          <span>💬 ${qi.answer_count} ${qi.answer_count === 1 ? 'Antwort' : 'Antworten'}</span>
+          <span>💬 ${qi.answer_count} ${qi.answer_count === 1 ? '<span data-i18n="answer.one">Antwort</span>' : '<span data-i18n="answer.many">Antworten</span>'}</span>
           <span>👁 ${qi.view_count}</span>
         </span>
       </div>
@@ -811,12 +894,12 @@ function renderHome({ questions, categories, me, activeCategory }) {
 
   const content = `
     <section class="hero">
-      <h1>Fragen, die <em>echte Menschen</em> beantworten.</h1>
-      <p class="lead">Jede Antwort hier kommt von einem kryptografisch verifizierten Menschen — mit Rolle und Trust-Score. Keine Bots, keine KI-Antworten ohne Kennzeichnung.</p>
+      <h1><span data-i18n="home.hero.t1">Fragen, die</span> <em data-i18n="home.hero.t2">echte Menschen</em> <span data-i18n="home.hero.t3">beantworten.</span></h1>
+      <p class="lead" data-i18n="home.hero.lead">Jede Antwort hier kommt von einem kryptografisch verifizierten Menschen — mit Rolle und Trust-Score. Keine Bots, keine KI-Antworten ohne Kennzeichnung.</p>
     </section>
     <nav class="categories">
       <a class="cat-chip ${!activeCategory ? 'active' : ''}" href="/">
-        <span class="cat-icon">📋</span><span>Alle</span>
+        <span class="cat-icon">📋</span><span data-i18n="cat.all">Alle</span>
       </a>
       ${catChips}
     </nav>
@@ -833,7 +916,7 @@ function renderQuestion({ question, answers, category, me }) {
 
   const answersHtml = answers.length === 0 ? `
     <div class="empty-answers">
-      <p>Noch keine Antworten. ${me ? 'Sei der erste!' : 'Logge dich ein, um zu antworten.'}</p>
+      <p><span data-i18n="q.noAnswers">Noch keine Antworten.</span> ${me ? '<span data-i18n="q.beFirst">Sei der erste!</span>' : '<span data-i18n="q.loginToAnswer">Logge dich ein, um zu antworten.</span>'}</p>
     </div>` : answers.map(a => {
     const qualified = qualifiedRoles.includes(a.answerer_role);
     const trustClass = a.answerer_trust >= 80 ? 'trust-high' :
@@ -841,32 +924,32 @@ function renderQuestion({ question, answers, category, me }) {
     const isBot = a.answerer_actor_type === 'bot';
     return `
       <article class="answer ${a.marked_helpful ? 'answer-helpful' : ''} ${isBot ? 'answer-bot' : ''}">
-        ${a.marked_helpful ? `<div class="helpful-badge">✓ Vom Fragesteller als hilfreich markiert</div>` : ''}
+        ${a.marked_helpful ? `<div class="helpful-badge" data-i18n="answer.helpfulBadge">✓ Vom Fragesteller als hilfreich markiert</div>` : ''}
         <header class="answer-head">
           <div class="answerer">
             <span class="role-badge ${trustClass}" title="${esc(a.answerer_role_label)}">${esc(a.answerer_role_icon)}</span>
             <div>
               <div class="answerer-name">
                 ${esc(a.display_name)}
-                ${isBot ? `<span class="bot-pill" title="Antwort von einer registrierten Maschine — transparent gekennzeichnet">🤖 Maschine</span>` : ''}
+                ${isBot ? `<span class="bot-pill" data-i18n-title="bot.pillTitle" title="Antwort von einer registrierten Maschine — transparent gekennzeichnet" data-i18n="bot.machine">🤖 Maschine</span>` : ''}
               </div>
               <div class="answerer-meta">
-                <strong>${esc(a.answerer_role_label)}</strong> · ${isBot ? 'Maschine, selbstdeklariert' : `Trust ${a.answerer_trust}`}
+                <strong>${esc(a.answerer_role_label)}</strong> · ${isBot ? '<span data-i18n="bot.metaSelfDeclared">Maschine, selbstdeklariert</span>' : `Trust ${a.answerer_trust}`}
               </div>
             </div>
           </div>
           ${qualified && !isBot
-            ? `<span class="verify-badge verify-yes">✓ Fachverifikation für ${esc(category.label)}</span>`
+            ? `<span class="verify-badge verify-yes">✓ <span data-i18n="verify.for">Fachverifikation für</span> ${esc(category.label)}</span>`
             : isBot
-              ? `<span class="verify-badge verify-bot" title="Maschinen-Antworten werden grundsätzlich ohne Fachverifikation eingestuft — die Verantwortung liegt beim Bot-Betreiber.">🤖 ${esc(a.operator_name || a.answerer_role_label || 'Bot')}</span>`
-              : `<span class="verify-badge verify-no" title="Trotzdem gültige Antwort, aber ohne fachliche Verifikation für diese Kategorie">⚠ Keine Fachverifikation für ${esc(category?.label || question.category)}</span>`}
+              ? `<span class="verify-badge verify-bot" data-i18n-title="verify.botTitle" title="Maschinen-Antworten werden grundsätzlich ohne Fachverifikation eingestuft — die Verantwortung liegt beim Bot-Betreiber.">🤖 ${esc(a.operator_name || a.answerer_role_label || 'Bot')}</span>`
+              : `<span class="verify-badge verify-no" data-i18n-title="verify.noTitle" title="Trotzdem gültige Antwort, aber ohne fachliche Verifikation für diese Kategorie">⚠ <span data-i18n="verify.none">Keine Fachverifikation für</span> ${esc(category?.label || question.category)}</span>`}
         </header>
         <div class="answer-body">${linkify(esc(a.body))}</div>
         <footer class="answer-foot">
           <span class="answer-time">${fmtTime(a.created_at)}</span>
           ${askerIsMe && !a.marked_helpful ? `
             <form action="/a/${a.id}/helpful" method="POST" style="display:inline">
-              <button class="mark-helpful">Als hilfreich markieren</button>
+              <button class="mark-helpful" data-i18n="answer.markHelpful">Als hilfreich markieren</button>
             </form>` : ''}
         </footer>
       </article>`;
@@ -874,20 +957,20 @@ function renderQuestion({ question, answers, category, me }) {
 
   const answerForm = me ? `
     <form class="answer-form" action="/q/${question.id}/answer" method="POST">
-      <h3>Deine Antwort</h3>
+      <h3 data-i18n="q.yourAnswer">Deine Antwort</h3>
       <p class="answer-hint">
-        Du antwortest als <strong>${esc(me.role_label)}</strong> mit Trust ${me.trust_score}.
+        <span data-i18n="q.answeringAs">Du antwortest als</span> <strong>${esc(me.role_label)}</strong> <span data-i18n="q.withTrust">mit Trust</span> ${me.trust_score}.
         ${qualifiedRoles.includes(me.role)
-          ? `Deine Rolle ist für die Kategorie <em>${esc(category?.label)}</em> qualifiziert — deine Antwort erscheint mit grünem Fachsiegel.`
-          : `Deine Rolle ist für die Kategorie <em>${esc(category?.label)}</em> nicht spezifisch qualifiziert. Du darfst trotzdem antworten — deine Antwort wird mit einem Hinweis versehen.`}
+          ? `<span data-i18n="q.qual.pre">Deine Rolle ist für die Kategorie</span> <em>${esc(category?.label)}</em> <span data-i18n="q.qual.post">qualifiziert — deine Antwort erscheint mit grünem Fachsiegel.</span>`
+          : `<span data-i18n="q.qual.pre">Deine Rolle ist für die Kategorie</span> <em>${esc(category?.label)}</em> <span data-i18n="q.notQual.post">nicht spezifisch qualifiziert. Du darfst trotzdem antworten — deine Antwort wird mit einem Hinweis versehen.</span>`}
       </p>
-      <textarea name="body" rows="6" maxlength="5000" placeholder="Deine Antwort..." required></textarea>
-      <button type="submit" class="btn-primary">Antwort posten</button>
+      <textarea name="body" rows="6" maxlength="5000" data-i18n-ph="q.answerPlaceholder" placeholder="Deine Antwort..." required></textarea>
+      <button type="submit" class="btn-primary" data-i18n="q.postAnswer">Antwort posten</button>
     </form>
   ` : `
     <div class="answer-form-empty">
-      <p>Logge dich ein, um zu antworten.</p>
-      <a class="btn-primary" href="/login?from=/q/${question.id}">Mit HHTTPS einloggen</a>
+      <p data-i18n="q.loginToAnswer">Logge dich ein, um zu antworten.</p>
+      <a class="btn-primary" href="/login?from=/q/${question.id}" data-i18n="nav.login">Mit HHTTPS einloggen</a>
     </div>`;
 
   const content = `
@@ -895,7 +978,7 @@ function renderQuestion({ question, answers, category, me }) {
       <div class="q-breadcrumb">
         <a href="/?category=${esc(question.category)}">${esc(category?.icon || '📰')} ${esc(category?.label || question.category)}</a>
         <span class="sep">›</span>
-        <span>Frage</span>
+        <span data-i18n="q.breadcrumb">Frage</span>
       </div>
       <h1>${esc(question.title)}</h1>
       <div class="q-meta-detail">
@@ -909,7 +992,7 @@ function renderQuestion({ question, answers, category, me }) {
     </article>
 
     <section class="answers">
-      <h2>${answers.length} ${answers.length === 1 ? 'Antwort' : 'Antworten'}</h2>
+      <h2>${answers.length} ${answers.length === 1 ? '<span data-i18n="answer.one">Antwort</span>' : '<span data-i18n="answer.many">Antworten</span>'}</h2>
       ${answersHtml}
     </section>
 
@@ -934,34 +1017,34 @@ function renderAskForm({ me, categories }) {
 
   const content = `
     <article class="ask-page">
-      <h1>Frage stellen</h1>
-      <p class="lead">Du fragst als <strong>${esc(me.role_label)}</strong>. Dein Trust-Score und deine Rolle werden bei deiner Frage angezeigt.</p>
+      <h1 data-i18n="ask.h1">Frage stellen</h1>
+      <p class="lead"><span data-i18n="ask.askingAs">Du fragst als</span> <strong>${esc(me.role_label)}</strong>. <span data-i18n="ask.leadRest">Dein Trust-Score und deine Rolle werden bei deiner Frage angezeigt.</span></p>
 
       <form action="/ask" method="POST" class="ask-form">
         <label class="form-row">
-          <span class="form-label">Titel</span>
+          <span class="form-label" data-i18n="form.title">Titel</span>
           <input type="text" name="title" maxlength="200" required
-                 placeholder="Konkrete Frage in einem Satz..."
+                 data-i18n-ph="ask.titlePlaceholder" placeholder="Konkrete Frage in einem Satz..."
                  class="form-input">
         </label>
 
         <label class="form-row">
-          <span class="form-label">Beschreibung</span>
+          <span class="form-label" data-i18n="form.body">Beschreibung</span>
           <textarea name="body" rows="8" maxlength="5000" required
-                    placeholder="Kontext, was du schon weißt, was du genau wissen willst..."
+                    data-i18n-ph="ask.bodyPlaceholder" placeholder="Kontext, was du schon weißt, was du genau wissen willst..."
                     class="form-textarea"></textarea>
         </label>
 
         <div class="form-row">
-          <span class="form-label">Kategorie</span>
+          <span class="form-label" data-i18n="form.category">Kategorie</span>
           <div class="cat-radios">
             ${catOptions}
           </div>
         </div>
 
         <div class="form-actions">
-          <a href="/" class="btn-secondary">Abbrechen</a>
-          <button type="submit" class="btn-primary">Frage stellen</button>
+          <a href="/" class="btn-secondary" data-i18n="action.cancel">Abbrechen</a>
+          <button type="submit" class="btn-primary" data-i18n="action.ask">Frage stellen</button>
         </div>
       </form>
     </article>
@@ -973,9 +1056,9 @@ function renderError(msg) {
   return pageWrap('Fehler', `
     <div class="empty">
       <div class="empty-icon">⚠</div>
-      <h2>Ein Fehler ist aufgetreten</h2>
+      <h2 data-i18n="error.title">Ein Fehler ist aufgetreten</h2>
       <p>${esc(msg)}</p>
-      <a class="btn-primary" href="/">← zurück</a>
+      <a class="btn-primary" href="/" data-i18n="action.back">← zurück</a>
     </div>
   `, {});
 }
@@ -1004,10 +1087,10 @@ function fmtTime(d) {
   const date = new Date(d);
   const now = new Date();
   const diffSec = Math.floor((now - date) / 1000);
-  if (diffSec < 60) return 'gerade eben';
-  if (diffSec < 3600) return Math.floor(diffSec / 60) + ' Min';
-  if (diffSec < 86400) return Math.floor(diffSec / 3600) + ' Std';
-  if (diffSec < 7 * 86400) return Math.floor(diffSec / 86400) + ' Tag(e)';
+  if (diffSec < 60) return '<span data-i18n="time.justNow">gerade eben</span>';
+  if (diffSec < 3600) return Math.floor(diffSec / 60) + ' <span data-i18n="time.min">Min</span>';
+  if (diffSec < 86400) return Math.floor(diffSec / 3600) + ' <span data-i18n="time.hrs">Std</span>';
+  if (diffSec < 7 * 86400) return Math.floor(diffSec / 86400) + ' <span data-i18n="time.days">Tag(e)</span>';
   return date.toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 

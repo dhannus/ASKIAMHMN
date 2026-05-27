@@ -2,7 +2,7 @@
 # ═════════════════════════════════════════════════════════════════════════════
 # ask.iamhmn.org — deployment script (idempotent)
 #
-# Run on the Strato/funnysearch.eu server as root:
+# Run on the production server as root:
 #   bash deploy.sh
 #
 # What this does:
